@@ -27,6 +27,7 @@ private:
             LaPautaEQProAudioProcessorEditor& editor);
 
         void paint(juce::Graphics& g) override;
+
         void mouseDown(const juce::MouseEvent& event) override;
         void mouseDrag(const juce::MouseEvent& event) override;
         void mouseUp(const juce::MouseEvent& event) override;
