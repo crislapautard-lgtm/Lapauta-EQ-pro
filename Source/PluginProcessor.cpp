@@ -3,23 +3,19 @@
 #include "PluginEditor.h"
 #include <cmath>
 
-//==============================================================================
-// Helpers
-//==============================================================================
-
 namespace
 {
     using Coefficients = juce::dsp::IIR::Coefficients<float>;
+
+    const std::array<float, 6> defaultFrequencies
+    {
+        80.0f, 200.0f, 500.0f, 1500.0f, 5000.0f, 12000.0f
+    };
 
     juce::String bandID(const juce::String& prefix, int band)
     {
         return prefix + juce::String(band + 1);
     }
-
-    constexpr std::array<float, 6> defaultFrequencies
-    {
-        80.0f, 200.0f, 500.0f, 1500.0f, 5000.0f, 12000.0f
-    };
 
     Coefficients::Ptr createBandCoefficients(
         int type,
@@ -43,27 +39,29 @@ namespace
 
         switch (type)
         {
-            case 1:
+            case 1: // Low pass
                 return Coefficients::makeLowPass(
                     sampleRate, safeFrequency, safeQ);
 
-            case 2:
+            case 2: // Band pass
                 return Coefficients::makeBandPass(
                     sampleRate, safeFrequency, safeQ);
 
-            case 3:
+            case 3: // High pass
                 return Coefficients::makeHighPass(
                     sampleRate, safeFrequency, safeQ);
 
-            case 4:
+            case 4: // Band stop / Notch
             {
                 const double omega =
                     juce::MathConstants<double>::twoPi
                     * static_cast<double>(safeFrequency) / sampleRate;
 
                 const double cosine = std::cos(omega);
+
                 const double alpha =
-                    std::sin(omega) / (2.0 * static_cast<double>(safeQ));
+                    std::sin(omega) /
+                    (2.0 * static_cast<double>(safeQ));
 
                 return new Coefficients(
                     1.0f,
@@ -74,15 +72,15 @@ namespace
                     static_cast<float>(1.0 - alpha));
             }
 
-            case 5:
+            case 5: // Low shelf
                 return Coefficients::makeLowShelf(
                     sampleRate, safeFrequency, safeQ, gainFactor);
 
-            case 6:
+            case 6: // Peaking
                 return Coefficients::makePeakFilter(
                     sampleRate, safeFrequency, safeQ, gainFactor);
 
-            case 7:
+            case 7: // High shelf
                 return Coefficients::makeHighShelf(
                     sampleRate, safeFrequency, safeQ, gainFactor);
 
@@ -214,6 +212,7 @@ void LaPautaEQProAudioProcessor::prepareToPlay(
     int samplesPerBlock)
 {
     juce::dsp::ProcessSpec spec;
+
     spec.sampleRate = sampleRate;
     spec.maximumBlockSize = static_cast<juce::uint32>(
         juce::jmax(1, samplesPerBlock));
@@ -280,19 +279,25 @@ void LaPautaEQProAudioProcessor::updateFilters()
         if (enabled && type != 0)
         {
             coefficients = createBandCoefficients(
-                type, sampleRate, frequency, gain, q);
+                type,
+                sampleRate,
+                frequency,
+                gain,
+                q);
         }
 
         if (coefficients == nullptr)
         {
             coefficients = Coefficients::makeFirstOrderLowPass(
-                sampleRate, static_cast<float>(sampleRate * 0.45));
+                sampleRate,
+                static_cast<float>(sampleRate * 0.45));
         }
 
         for (int channel = 0; channel < 2; ++channel)
         {
             filters[static_cast<size_t>(band)]
-                   [static_cast<size_t>(channel)].coefficients = coefficients;
+                   [static_cast<size_t>(channel)]
+                       .coefficients = coefficients;
         }
     }
 }
@@ -343,7 +348,7 @@ void LaPautaEQProAudioProcessor::processBlock(
 
     buffer.applyGain(outputGain);
 
-    // FFT: captura la señal de salida en mono.
+    // FFT en tiempo real.
     for (int sample = 0; sample < samples; ++sample)
     {
         float mono = 0.0f;
@@ -364,11 +369,14 @@ void LaPautaEQProAudioProcessor::processBlock(
         if (nextIndex == 0)
         {
             for (int i = 0; i < fftSize; ++i)
+            {
                 fftData[static_cast<size_t>(i)] =
                     fifo[static_cast<size_t>(i)];
+            }
 
             window.multiplyWithWindowingTable(
-                fftData.data(), fftSize);
+                fftData.data(),
+                fftSize);
 
             forwardFFT.performFrequencyOnlyForwardTransform(
                 fftData.data());
