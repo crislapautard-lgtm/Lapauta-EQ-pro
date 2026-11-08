@@ -44,6 +44,8 @@ jobs:
             throw "ERROR: No se pudo copiar el plugin."
           }
 
+          Write-Host "Plugin encontrado y copiado correctamente."
+
       - name: Upload VST3 ZIP
         uses: actions/upload-artifact@v4
         with:
@@ -62,7 +64,7 @@ jobs:
 
           $logoLine = ""
           if (Test-Path "assets\logo.ico") {
-            $logoLine = 'SetupIconFile=assets\logo.ico'
+            $logoLine = 'SetupIconFile=..\assets\logo.ico'
           }
 
           $iss = @"
@@ -78,8 +80,7 @@ jobs:
           DefaultDirName={autopf}\Common Files\VST3
           DisableDirPage=yes
           DisableProgramGroupPage=yes
-          DefaultGroupName=La Pauta EQ Pro
-          OutputDir=installer
+          OutputDir=.
           OutputBaseFilename=LaPauta-EQ-Pro-Setup
           ArchitecturesAllowed=x64
           ArchitecturesInstallIn64BitMode=x64
@@ -94,7 +95,7 @@ jobs:
           Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
 
           [Files]
-          Source: "PLUGIN\La Pauta EQ Pro.vst3\*"; DestDir: "{app}\La Pauta EQ Pro.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+          Source: "..\PLUGIN\La Pauta EQ Pro.vst3\*"; DestDir: "{app}\La Pauta EQ Pro.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
 
           [UninstallDelete]
           Type: filesandordirs; Name: "{app}\La Pauta EQ Pro.vst3"
@@ -121,9 +122,15 @@ jobs:
 
           & $iscc "installer\LaPautaEQPro.iss"
 
+          if ($LASTEXITCODE -ne 0) {
+            throw "ERROR: Inno Setup no pudo compilar el instalador."
+          }
+
           if (!(Test-Path "installer\LaPauta-EQ-Pro-Setup.exe")) {
             throw "ERROR: No se generó el instalador EXE."
           }
+
+          Write-Host "INSTALADOR GENERADO CORRECTAMENTE."
 
       - name: Upload Windows EXE Installer
         uses: actions/upload-artifact@v4
@@ -132,3 +139,4 @@ jobs:
           path: installer/LaPauta-EQ-Pro-Setup.exe
           if-no-files-found: error
           compression-level: 0
+          
