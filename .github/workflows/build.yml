@@ -1,4 +1,4 @@
-name: Build La Pauta EQ Pro
+name: Build VST3 + Installer
 
 on:
   push:
@@ -14,25 +14,22 @@ jobs:
       - name: Configure CMake
         run: cmake -B build -DCMAKE_BUILD_TYPE=Release
 
-      - name: Build VST3
+      - name: Build
         run: cmake --build build --config Release --parallel
 
-      - name: Install Inno Setup
-        run: choco install innosetup -y
-
-      - name: Build Installer EXE
+      - name: Build Installer
         run: |
+          choco install innosetup -y
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\LaPautaEQPro.iss
-        shell: powershell
+
+      - name: Upload Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaPautaEQPro-Setup
+          path: installer/Output/LaPautaEQPro-Setup.exe
 
       - name: Upload VST3
         uses: actions/upload-artifact@v4
         with:
           name: LaPautaEQPro-VST3
-          path: build/LaPautaEQPro_artefacts/Release/VST3/
-
-      - name: Upload Installer EXE
-        uses: actions/upload-artifact@v4
-        with:
-          name: LaPautaEQPro-Setup
-          path: installer-output/LaPautaEQPro-Setup.exe
+          path: build/LaPautaEQPro_artefacts/Release/VST3/LaPautaEQPro.vst3
