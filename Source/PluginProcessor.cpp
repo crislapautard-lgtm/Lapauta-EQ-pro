@@ -1,39 +1,25 @@
 
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
+#include <cmath>
+
+//==============================================================================
+// Helpers
+//==============================================================================
 
 namespace
 {
-    constexpr std::array<float, 6> defaultFrequencies {
+    using Coefficients = juce::dsp::IIR::Coefficients<float>;
+
+    juce::String bandID(const juce::String& prefix, int band)
+    {
+        return prefix + juce::String(band + 1);
+    }
+
+    constexpr std::array<float, 6> defaultFrequencies
+    {
         80.0f, 200.0f, 500.0f, 1500.0f, 5000.0f, 12000.0f
     };
-
-    juce::String frequencyID(int band)
-    {
-        return "FREQ" + juce::String(band + 1);
-    }
-
-    juce::String gainID(int band)
-    {
-        return "GAIN" + juce::String(band + 1);
-    }
-
-    juce::String qID(int band)
-    {
-        return "Q" + juce::String(band + 1);
-    }
-
-    juce::String typeID(int band)
-    {
-        return "TYPE" + juce::String(band + 1);
-    }
-
-    juce::String enabledID(int band)
-    {
-        return "BANDON" + juce::String(band + 1);
-    }
-
-    using Coefficients = juce::dsp::IIR::Coefficients<float>;
 
     Coefficients::Ptr createBandCoefficients(
         int type,
@@ -70,8 +56,23 @@ namespace
                     sampleRate, safeFrequency, safeQ);
 
             case 4:
-                return Coefficients::makeNotchFilter(
-                    sampleRate, safeFrequency, safeQ);
+            {
+                const double omega =
+                    juce::MathConstants<double>::twoPi
+                    * static_cast<double>(safeFrequency) / sampleRate;
+
+                const double cosine = std::cos(omega);
+                const double alpha =
+                    std::sin(omega) / (2.0 * static_cast<double>(safeQ));
+
+                return new Coefficients(
+                    1.0f,
+                    static_cast<float>(-2.0 * cosine),
+                    1.0f,
+                    static_cast<float>(1.0 + alpha),
+                    static_cast<float>(-2.0 * cosine),
+                    static_cast<float>(1.0 - alpha));
+            }
 
             case 5:
                 return Coefficients::makeLowShelf(
@@ -91,20 +92,40 @@ namespace
     }
 }
 
+//==============================================================================
+// Constructor
+//==============================================================================
+
 LaPautaEQProAudioProcessor::LaPautaEQProAudioProcessor()
-    : AudioProcessor(BusesProperties()
-        .withInput("Input", juce::AudioChannelSet::stereo(), true)
-        .withOutput("Output", juce::AudioChannelSet::stereo(), true)),
-      parameters(*this, nullptr, "PARAMETERS", createParameterLayout())
+    : AudioProcessor(
+        BusesProperties()
+            .withInput(
+                "Input",
+                juce::AudioChannelSet::stereo(),
+                true)
+            .withOutput(
+                "Output",
+                juce::AudioChannelSet::stereo(),
+                true)),
+      parameters(
+          *this,
+          nullptr,
+          "PARAMETERS",
+          createParameterLayout())
 {
 }
+
+//==============================================================================
+// Parameter Layout
+//==============================================================================
 
 juce::AudioProcessorValueTreeState::ParameterLayout
 LaPautaEQProAudioProcessor::createParameterLayout()
 {
     juce::AudioProcessorValueTreeState::ParameterLayout layout;
 
-    const juce::StringArray filterTypes {
+    const juce::StringArray filterTypes
+    {
         "Disabled",
         "Low pass",
         "Band pass",
@@ -117,59 +138,85 @@ LaPautaEQProAudioProcessor::createParameterLayout()
 
     for (int i = 0; i < numBands; ++i)
     {
-        const auto suffix = juce::String(i + 1);
+        const juce::String suffix = juce::String(i + 1);
 
         layout.add(std::make_unique<juce::AudioParameterFloat>(
-            frequencyID(i), "Frequency " + suffix,
-            juce::NormalisableRange<float>(20.0f, 20000.0f, 1.0f, 0.25f),
+            bandID("FREQ", i),
+            "Frequency " + suffix,
+            juce::NormalisableRange<float>(
+                20.0f, 20000.0f, 1.0f, 0.25f),
             defaultFrequencies[static_cast<size_t>(i)]));
 
         layout.add(std::make_unique<juce::AudioParameterFloat>(
-            gainID(i), "Gain " + suffix,
-            juce::NormalisableRange<float>(-18.0f, 18.0f, 0.1f),
+            bandID("GAIN", i),
+            "Gain " + suffix,
+            juce::NormalisableRange<float>(
+                -18.0f, 18.0f, 0.1f),
             0.0f));
 
         layout.add(std::make_unique<juce::AudioParameterFloat>(
-            qID(i), "Q " + suffix,
-            juce::NormalisableRange<float>(0.1f, 10.0f, 0.01f, 0.5f),
+            bandID("Q", i),
+            "Q " + suffix,
+            juce::NormalisableRange<float>(
+                0.1f, 10.0f, 0.01f, 0.5f),
             1.0f));
 
-        // Peaking is the default to preserve the previous EQ behavior.
         layout.add(std::make_unique<juce::AudioParameterChoice>(
-            typeID(i), "Filter Type " + suffix,
-            filterTypes, 6));
+            bandID("TYPE", i),
+            "Filter Type " + suffix,
+            filterTypes,
+            6));
 
         layout.add(std::make_unique<juce::AudioParameterBool>(
-            enabledID(i), "Band Enabled " + suffix, true));
+            bandID("BANDON", i),
+            "Band Enabled " + suffix,
+            true));
     }
 
     layout.add(std::make_unique<juce::AudioParameterFloat>(
-        "OUTPUT", "Output",
-        juce::NormalisableRange<float>(-24.0f, 12.0f, 0.1f),
+        "OUTPUT",
+        "Output",
+        juce::NormalisableRange<float>(
+            -24.0f, 12.0f, 0.1f),
         0.0f));
 
     return layout;
 }
+
+//==============================================================================
+// Plugin Information
+//==============================================================================
 
 const juce::String LaPautaEQProAudioProcessor::getName() const
 {
     return JucePlugin_Name;
 }
 
+//==============================================================================
+// Bus Layout
+//==============================================================================
+
 bool LaPautaEQProAudioProcessor::isBusesLayoutSupported(
     const BusesLayout& layouts) const
 {
-    return layouts.getMainInputChannelSet() == juce::AudioChannelSet::stereo()
-        && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
+    return layouts.getMainInputChannelSet()
+            == juce::AudioChannelSet::stereo()
+        && layouts.getMainOutputChannelSet()
+            == juce::AudioChannelSet::stereo();
 }
+
+//==============================================================================
+// Prepare
+//==============================================================================
 
 void LaPautaEQProAudioProcessor::prepareToPlay(
     double sampleRate,
-    int)
+    int samplesPerBlock)
 {
     juce::dsp::ProcessSpec spec;
     spec.sampleRate = sampleRate;
-    spec.maximumBlockSize = 8192;
+    spec.maximumBlockSize = static_cast<juce::uint32>(
+        juce::jmax(1, samplesPerBlock));
     spec.numChannels = 1;
 
     for (auto& band : filters)
@@ -181,16 +228,23 @@ void LaPautaEQProAudioProcessor::prepareToPlay(
         }
     }
 
-    updateFilters();
-
     fifoIndex.store(0);
     fifo.fill(0.0f);
+    fftData.fill(0.0f);
     spectrum.fill(0.0f);
+
+    updateFilters();
 }
+
+//==============================================================================
 
 void LaPautaEQProAudioProcessor::releaseResources()
 {
 }
+
+//==============================================================================
+// Update Filters
+//==============================================================================
 
 void LaPautaEQProAudioProcessor::updateFilters()
 {
@@ -202,36 +256,50 @@ void LaPautaEQProAudioProcessor::updateFilters()
     for (int band = 0; band < numBands; ++band)
     {
         const float frequency =
-            parameters.getRawParameterValue(frequencyID(band))->load();
+            parameters.getRawParameterValue(
+                bandID("FREQ", band))->load();
 
         const float gain =
-            parameters.getRawParameterValue(gainID(band))->load();
+            parameters.getRawParameterValue(
+                bandID("GAIN", band))->load();
 
         const float q =
-            parameters.getRawParameterValue(qID(band))->load();
+            parameters.getRawParameterValue(
+                bandID("Q", band))->load();
 
         const int type = juce::roundToInt(
-            parameters.getRawParameterValue(typeID(band))->load());
+            parameters.getRawParameterValue(
+                bandID("TYPE", band))->load());
 
         const bool enabled =
-            parameters.getRawParameterValue(enabledID(band))->load() > 0.5f;
+            parameters.getRawParameterValue(
+                bandID("BANDON", band))->load() > 0.5f;
 
-        if (!enabled || type == 0)
-            continue;
+        Coefficients::Ptr coefficients;
 
-        auto coeff = createBandCoefficients(
-            type, sampleRate, frequency, gain, q);
+        if (enabled && type != 0)
+        {
+            coefficients = createBandCoefficients(
+                type, sampleRate, frequency, gain, q);
+        }
 
-        if (coeff == nullptr)
-            continue;
+        if (coefficients == nullptr)
+        {
+            coefficients = Coefficients::makeFirstOrderLowPass(
+                sampleRate, static_cast<float>(sampleRate * 0.45));
+        }
 
         for (int channel = 0; channel < 2; ++channel)
         {
             filters[static_cast<size_t>(band)]
-                   [static_cast<size_t>(channel)].coefficients = coeff;
+                   [static_cast<size_t>(channel)].coefficients = coefficients;
         }
     }
 }
+
+//==============================================================================
+// Process Audio
+//==============================================================================
 
 void LaPautaEQProAudioProcessor::processBlock(
     juce::AudioBuffer<float>& buffer,
@@ -241,105 +309,118 @@ void LaPautaEQProAudioProcessor::processBlock(
 
     const int channels = juce::jmin(2, buffer.getNumChannels());
     const int samples = buffer.getNumSamples();
-    const double sampleRate = getSampleRate();
 
-    if (sampleRate > 0.0)
+    if (channels == 0)
+        return;
+
+    updateFilters();
+
+    for (int band = 0; band < numBands; ++band)
     {
-        for (int band = 0; band < numBands; ++band)
+        const int type = juce::roundToInt(
+            parameters.getRawParameterValue(
+                bandID("TYPE", band))->load());
+
+        const bool enabled =
+            parameters.getRawParameterValue(
+                bandID("BANDON", band))->load() > 0.5f;
+
+        if (!enabled || type == 0)
+            continue;
+
+        for (int channel = 0; channel < channels; ++channel)
         {
-            const float frequency =
-                parameters.getRawParameterValue(frequencyID(band))->load();
+            auto* data = buffer.getWritePointer(channel);
 
-            const float gain =
-                parameters.getRawParameterValue(gainID(band))->load();
-
-            const float q =
-                parameters.getRawParameterValue(qID(band))->load();
-
-            const int type = juce::roundToInt(
-                parameters.getRawParameterValue(typeID(band))->load());
-
-            const bool enabled =
-                parameters.getRawParameterValue(enabledID(band))->load() > 0.5f;
-
-            // Disabled bands do not process the audio.
-            if (!enabled || type == 0)
-                continue;
-
-            auto coeff = createBandCoefficients(
-                type, sampleRate, frequency, gain, q);
-
-            if (coeff == nullptr)
-                continue;
-
-            for (int channel = 0; channel < channels; ++channel)
-            {
-                auto& filter =
-                    filters[static_cast<size_t>(band)]
-                           [static_cast<size_t>(channel)];
-
-                filter.coefficients = coeff;
-
-                float* channelData = buffer.getWritePointer(channel);
-
-                for (int sample = 0; sample < samples; ++sample)
-                    channelData[sample] = filter.processSample(channelData[sample]);
-            }
+            filters[static_cast<size_t>(band)]
+                   [static_cast<size_t>(channel)]
+                       .processSamples(data, samples);
         }
     }
 
-    const float outputDb =
-        parameters.getRawParameterValue("OUTPUT")->load();
+    const float outputGain = juce::Decibels::decibelsToGain(
+        parameters.getRawParameterValue("OUTPUT")->load());
 
-    buffer.applyGain(juce::Decibels::decibelsToGain(outputDb));
+    buffer.applyGain(outputGain);
 
-    if (channels > 0)
+    // FFT: captura la señal de salida en mono.
+    for (int sample = 0; sample < samples; ++sample)
     {
-        for (int i = 0; i < samples; ++i)
+        float mono = 0.0f;
+
+        for (int channel = 0; channel < channels; ++channel)
+            mono += buffer.getSample(channel, sample);
+
+        mono /= static_cast<float>(channels);
+
+        const int index = fifoIndex.load();
+
+        fifo[static_cast<size_t>(index)] = mono;
+
+        const int nextIndex = (index + 1) % fftSize;
+
+        fifoIndex.store(nextIndex);
+
+        if (nextIndex == 0)
         {
-            const float mono = buffer.getNumChannels() > 1
-                ? 0.5f * (buffer.getSample(0, i) + buffer.getSample(1, i))
-                : buffer.getSample(0, i);
+            for (int i = 0; i < fftSize; ++i)
+                fftData[static_cast<size_t>(i)] =
+                    fifo[static_cast<size_t>(i)];
 
-            const int index = fifoIndex.fetch_add(1) % fftSize;
-            fifo[static_cast<size_t>(index)] = mono;
+            window.multiplyWithWindowingTable(
+                fftData.data(), fftSize);
 
-            if (index == fftSize - 1)
+            forwardFFT.performFrequencyOnlyForwardTransform(
+                fftData.data());
+
+            for (int i = 0; i < fftSize / 2; ++i)
             {
-                for (int j = 0; j < fftSize; ++j)
-                    fftData[static_cast<size_t>(j)] = fifo[static_cast<size_t>(j)];
-
-                std::fill(
-                    fftData.begin() + fftSize,
-                    fftData.end(),
-                    0.0f);
-
-                window.multiplyWithWindowingTable(fftData.data(), fftSize);
-                forwardFFT.performFrequencyOnlyForwardTransform(fftData.data());
-
-                for (int j = 0; j < fftSize / 2; ++j)
-                    spectrum[static_cast<size_t>(j)] =
-                        fftData[static_cast<size_t>(j)];
+                spectrum[static_cast<size_t>(i)] =
+                    juce::jlimit(
+                        0.0f,
+                        1.0f,
+                        fftData[static_cast<size_t>(i)] * 0.015f);
             }
         }
     }
 }
 
+//==============================================================================
+// Spectrum
+//==============================================================================
+
 float LaPautaEQProAudioProcessor::getSpectrumValue(int index) const
 {
-    if (index < 0 || index >= fftSize / 2)
-        return 0.0f;
+    index = juce::jlimit(0, fftSize / 2 - 1, index);
 
     return spectrum[static_cast<size_t>(index)];
 }
 
+//==============================================================================
+// Editor
+//==============================================================================
+
+juce::AudioProcessorEditor*
+LaPautaEQProAudioProcessor::createEditor()
+{
+    return new LaPautaEQProAudioProcessorEditor(*this);
+}
+
+//==============================================================================
+// Save State
+//==============================================================================
+
 void LaPautaEQProAudioProcessor::getStateInformation(
     juce::MemoryBlock& destData)
 {
-    auto state = parameters.copyState();
+    const auto state = parameters.copyState();
+
     std::unique_ptr<juce::XmlElement> xml(state.createXml());
+
     copyXmlToBinary(*xml, destData);
 }
+
+//==============================================================================
 
 void LaPautaEQProAudioProcessor::setStateInformation(
     const void* data,
@@ -349,14 +430,15 @@ void LaPautaEQProAudioProcessor::setStateInformation(
         getXmlFromBinary(data, sizeInBytes));
 
     if (xml != nullptr && xml->hasTagName(parameters.state.getType()))
-        parameters.replaceState(juce::ValueTree::fromXml(*xml));
+    {
+        parameters.replaceState(
+            juce::ValueTree::fromXml(*xml));
+    }
 }
 
-juce::AudioProcessorEditor*
-LaPautaEQProAudioProcessor::createEditor()
-{
-    return new LaPautaEQProAudioProcessorEditor(*this);
-}
+//==============================================================================
+// Plugin Factory
+//==============================================================================
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
