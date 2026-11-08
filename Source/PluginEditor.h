@@ -1,19 +1,28 @@
 #pragma once
-#include <juce_audio_processors/juce_audio_processors.h>
-#include <juce_gui_basics/juce_gui_basics.h>
+#include <JuceHeader.h>
 #include "PluginProcessor.h"
 
-class LaPautaEQProAudioProcessorEditor : public juce::AudioProcessorEditor
+class LaPautaEQProAudioProcessorEditor : public juce::AudioProcessorEditor, public juce::Timer
 {
 public:
     LaPautaEQProAudioProcessorEditor(LaPautaEQProAudioProcessor&);
     ~LaPautaEQProAudioProcessorEditor() override;
     void paint(juce::Graphics&) override;
     void resized() override;
+    void timerCallback() override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
 private:
     LaPautaEQProAudioProcessor& audioProcessor;
-    juce::Slider lowSlider, midSlider, highSlider;
-    juce::Label lowLabel, midLabel, highLabel;
-    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> lowAttach, midAttach, highAttach;
+    juce::dsp::FFT fft;
+    juce::dsp::WindowingFunction<float> window;
+    std::vector<float> scopeData;
+    int selectedBand = 0;
+    juce::Slider freqSlider, gainSlider, qSlider, outSlider;
+    juce::Label titleLabel, bandLabel, freqLabel, gainLabel, qLabel, outLabel;
+    juce::TextButton bandButtons[6];
+    std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> freqAttach, gainAttach, qAttach;
+    void updateAttachments();
+    void drawCurve(juce::Graphics&, juce::Rectangle<int> area);
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LaPautaEQProAudioProcessorEditor)
 };
