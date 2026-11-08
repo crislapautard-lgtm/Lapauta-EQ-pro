@@ -17,4 +17,4 @@ WizardStyle=modern
 PrivilegesRequired=admin
 
 [Files]
-Source: "..\build\LaPautaEQPro_artefacts\Release\VST3\La Pauta EQ Pro.vst3\*"; DestDir: "{commoncf}\VST3\La Pauta EQ Pro.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\build\LaPautaEQPro.vst3"; DestDir: "{commoncf}\VST3"; Flags: ignoreversion
