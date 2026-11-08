@@ -1,12 +1,15 @@
 cmake_minimum_required(VERSION 3.22)
 project(LaPautaEQPro VERSION 1.0.0)
-
-# ESTO ES LO IMPORTANTE: Que no pida Visual C++ en tu PC
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 set(CMAKE_BUILD_TYPE Release)
-
-add_subdirectory(JUCE)
-
+set(CMAKE_CXX_STANDARD 17)
+include(FetchContent)
+FetchContent_Declare(
+  JUCE
+  GIT_REPOSITORY https://github.com/juce-framework/JUCE.git
+  GIT_TAG 8.0.6
+)
+FetchContent_MakeAvailable(JUCE)
 juce_add_plugin(LaPautaEQPro
     COMPANY_NAME "LaPauta"
     PLUGIN_MANUFACTURER_CODE Lapa
@@ -20,25 +23,16 @@ juce_add_plugin(LaPautaEQPro
     COPY_PLUGIN_AFTER_BUILD FALSE
     VST3_CATEGORIES "Fx" "EQ"
 )
-
 target_sources(LaPautaEQPro PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginEditor.cpp
 )
-
 target_compile_definitions(LaPautaEQPro PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
     JUCE_VST3_CAN_REPLACE_VST2=0
 )
-
 target_link_libraries(LaPautaEQPro PRIVATE
     juce::juce_audio_utils
     juce::juce_dsp
-)
-
-# Que lo deje como archivo solo, no carpeta
-# Y liviano pa' PC de cartón
-set_target_properties(LaPautaEQPro PROPERTIES
-    CXX_STANDARD 17
 )
