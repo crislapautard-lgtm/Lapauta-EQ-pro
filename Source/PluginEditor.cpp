@@ -31,10 +31,8 @@ namespace
         float value)
     {
         if (auto* parameter = state.getParameter(id))
-        {
             parameter->setValueNotifyingHost(
                 parameter->convertTo0to1(value));
-        }
     }
 }
 
@@ -50,62 +48,44 @@ LaPautaEQProAudioProcessorEditor::EQGraph::EQGraph(
     setInterceptsMouseClicks(true, true);
 }
 
-//==============================================================================
-
 float LaPautaEQProAudioProcessorEditor::EQGraph::frequencyToX(
     float frequency) const
 {
     const float width = static_cast<float>(getWidth());
 
-    const float minFrequency = 20.0f;
-    const float maxFrequency = 20000.0f;
-
     const float normalized =
-        std::log(juce::jlimit(minFrequency, maxFrequency, frequency)
-                 / minFrequency)
-        / std::log(maxFrequency / minFrequency);
+        std::log(juce::jlimit(20.0f, 20000.0f, frequency) / 20.0f)
+        / std::log(1000.0f);
 
     return normalized * width;
 }
-
-//==============================================================================
 
 float LaPautaEQProAudioProcessorEditor::EQGraph::gainToY(
     float gain) const
 {
     const float height = static_cast<float>(getHeight());
 
-    const float normalized =
-        (18.0f - juce::jlimit(-18.0f, 18.0f, gain)) / 36.0f;
-
-    return normalized * height;
+    return (18.0f - juce::jlimit(-18.0f, 18.0f, gain))
+        / 36.0f * height;
 }
-
-//==============================================================================
 
 float LaPautaEQProAudioProcessorEditor::EQGraph::xToFrequency(
     float x) const
 {
     const float width = juce::jmax(1.0f, static_cast<float>(getWidth()));
-
     const float normalized = juce::jlimit(0.0f, 1.0f, x / width);
 
     return 20.0f * std::pow(1000.0f, normalized);
 }
 
-//==============================================================================
-
 float LaPautaEQProAudioProcessorEditor::EQGraph::yToGain(
     float y) const
 {
     const float height = juce::jmax(1.0f, static_cast<float>(getHeight()));
-
     const float normalized = juce::jlimit(0.0f, 1.0f, y / height);
 
     return 18.0f - normalized * 36.0f;
 }
-
-//==============================================================================
 
 int LaPautaEQProAudioProcessorEditor::EQGraph::findClosestBand(
     juce::Point<float> position) const
@@ -126,8 +106,7 @@ int LaPautaEQProAudioProcessorEditor::EQGraph::findClosestBand(
         const float x = frequencyToX(frequency);
         const float y = gainToY(gain);
 
-        const float distance =
-            position.getDistanceFrom({ x, y });
+        const float distance = position.getDistanceFrom({ x, y });
 
         if (distance < closestDistance)
         {
@@ -139,8 +118,6 @@ int LaPautaEQProAudioProcessorEditor::EQGraph::findClosestBand(
     return closestDistance < 28.0f ? closestBand : -1;
 }
 
-//==============================================================================
-
 void LaPautaEQProAudioProcessorEditor::EQGraph::updateBandFromMouse(
     int band,
     juce::Point<float> position)
@@ -148,18 +125,15 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::updateBandFromMouse(
     if (band < 0 || band >= 6)
         return;
 
-    const float frequency = xToFrequency(position.x);
-    const float gain = yToGain(position.y);
-
     setParameter(
         processor.parameters,
         parameterID("FREQ", band),
-        frequency);
+        xToFrequency(position.x));
 
     setParameter(
         processor.parameters,
         parameterID("GAIN", band),
-        gain);
+        yToGain(position.y));
 
     editor.updateSelectedBand();
     repaint();
@@ -191,11 +165,10 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::paint(
             ? juce::Colour(90, 105, 115)
             : juce::Colour(48, 57, 67));
 
-        g.drawHorizontalLine(
-            juce::roundToInt(y), 0.0f, width);
+        g.drawHorizontalLine(juce::roundToInt(y), 0.0f, width);
     }
 
-    // Vertical frequency grid.
+    // Frequency grid.
     const std::array<float, 10> frequencies
     {
         20.0f, 50.0f, 100.0f, 200.0f, 500.0f,
@@ -207,29 +180,24 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::paint(
         const float x = frequencyToX(frequency);
 
         g.setColour(juce::Colour(48, 57, 67));
-        g.drawVerticalLine(
-            juce::roundToInt(x), 0.0f, height);
+        g.drawVerticalLine(juce::roundToInt(x), 0.0f, height);
 
         g.setColour(mutedText);
         g.setFont(10.0f);
 
-        juce::String label;
-
-        if (frequency >= 1000.0f)
-            label = juce::String(frequency / 1000.0f, 1) + "k";
-        else
-            label = juce::String(juce::roundToInt(frequency));
+        juce::String label = frequency >= 1000.0f
+            ? juce::String(frequency / 1000.0f, 1) + "k"
+            : juce::String(juce::roundToInt(frequency));
 
         g.drawText(
             label,
             juce::roundToInt(x) - 19,
             juce::roundToInt(height - 17.0f),
-            38,
-            13,
+            38, 13,
             juce::Justification::centred);
     }
 
-    // Gain scale.
+    // Gain labels.
     for (int gain = -18; gain <= 18; gain += 6)
     {
         const float y = gainToY(static_cast<float>(gain));
@@ -241,14 +209,12 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::paint(
             juce::String(gain),
             4,
             juce::roundToInt(y - 7.0f),
-            30,
-            14,
+            30, 14,
             juce::Justification::left);
     }
 
     // FFT spectrum.
     juce::Path spectrumPath;
-
     const double sampleRate = processor.getSampleRate();
 
     if (sampleRate > 0.0)
@@ -257,8 +223,7 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::paint(
 
         for (int x = 0; x < getWidth(); ++x)
         {
-            const float frequency = xToFrequency(
-                static_cast<float>(x));
+            const float frequency = xToFrequency(static_cast<float>(x));
 
             const int fftIndex = juce::roundToInt(
                 frequency * 1024.0 / sampleRate);
@@ -276,32 +241,25 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::paint(
             {
                 spectrumPath.startNewSubPath(
                     static_cast<float>(x), y);
-
                 started = true;
             }
             else
             {
-                spectrumPath.lineTo(
-                    static_cast<float>(x), y);
+                spectrumPath.lineTo(static_cast<float>(x), y);
             }
         }
     }
 
     g.setColour(turquoise.withAlpha(0.75f));
-    g.strokePath(
-        spectrumPath,
-        juce::PathStrokeType(1.4f));
+    g.strokePath(spectrumPath, juce::PathStrokeType(1.4f));
 
     // EQ response curve.
     juce::Path responsePath;
-
     bool responseStarted = false;
 
     for (int x = 0; x < getWidth(); ++x)
     {
-        const float frequency =
-            xToFrequency(static_cast<float>(x));
-
+        const float frequency = xToFrequency(static_cast<float>(x));
         float totalGain = 0.0f;
 
         for (int band = 0; band < 6; ++band)
@@ -333,49 +291,43 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::paint(
                 juce::jmax(1.0f, frequency)
                 / juce::jmax(1.0f, center));
 
-            const float widthValue =
-                juce::jmax(0.15f, 1.0f / q);
+            const float widthValue = juce::jmax(0.15f, 1.0f / q);
 
-            const float bell =
-                std::exp(-0.5f * std::pow(
-                    ratio / widthValue, 2.0f));
+            const float bell = std::exp(
+                -0.5f * std::pow(ratio / widthValue, 2.0f));
 
             switch (type)
             {
-                case 1: // Low pass
+                case 1:
                     totalGain -= 18.0f /
-                        (1.0f + std::exp(
-                            -ratio * 5.0f / widthValue));
+                        (1.0f + std::exp(-ratio * 5.0f / widthValue));
                     break;
 
-                case 2: // Band pass
+                case 2:
                     totalGain += 12.0f * bell - 12.0f;
                     break;
 
-                case 3: // High pass
+                case 3:
                     totalGain -= 18.0f /
-                        (1.0f + std::exp(
-                            ratio * 5.0f / widthValue));
+                        (1.0f + std::exp(ratio * 5.0f / widthValue));
                     break;
 
-                case 4: // Notch
+                case 4:
                     totalGain -= 18.0f * bell;
                     break;
 
-                case 5: // Low shelf
+                case 5:
                     totalGain += gain /
-                        (1.0f + std::exp(
-                            ratio * 5.0f / widthValue));
+                        (1.0f + std::exp(ratio * 5.0f / widthValue));
                     break;
 
-                case 6: // Peaking
+                case 6:
                     totalGain += gain * bell;
                     break;
 
-                case 7: // High shelf
+                case 7:
                     totalGain += gain /
-                        (1.0f + std::exp(
-                            -ratio * 5.0f / widthValue));
+                        (1.0f + std::exp(-ratio * 5.0f / widthValue));
                     break;
 
                 default:
@@ -389,23 +341,19 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::paint(
 
         if (!responseStarted)
         {
-            responsePath.startNewSubPath(
-                static_cast<float>(x), y);
-
+            responsePath.startNewSubPath(static_cast<float>(x), y);
             responseStarted = true;
         }
         else
         {
-            responsePath.lineTo(
-                static_cast<float>(x), y);
+            responsePath.lineTo(static_cast<float>(x), y);
         }
     }
 
-    // Fill under response curve.
-    juce::Path fillPath = responsePath;
-
+    // Fill below response.
     if (responseStarted)
     {
+        juce::Path fillPath = responsePath;
         fillPath.lineTo(width, gainToY(0.0f));
         fillPath.lineTo(0.0f, gainToY(0.0f));
         fillPath.closeSubPath();
@@ -448,7 +396,6 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::paint(
         const float y = gainToY(gain);
 
         const bool selected = band == editor.selectedBand;
-
         const float radius = selected ? 8.0f : 6.0f;
 
         g.setColour(
@@ -463,20 +410,18 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::paint(
         g.setColour(bandColours[static_cast<size_t>(band)]);
 
         g.fillEllipse(
-            x - radius,
-            y - radius,
-            radius * 2.0f,
-            radius * 2.0f);
+            x - radius, y - radius,
+            radius * 2.0f, radius * 2.0f);
 
         g.setColour(juce::Colours::white);
+
         g.drawEllipse(
-            x - radius,
-            y - radius,
-            radius * 2.0f,
-            radius * 2.0f,
+            x - radius, y - radius,
+            radius * 2.0f, radius * 2.0f,
             selected ? 2.0f : 1.0f);
 
         g.setFont(10.0f);
+
         g.drawText(
             juce::String(band + 1),
             juce::Rectangle<float>(
@@ -486,14 +431,13 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::paint(
 }
 
 //==============================================================================
-// Graph Mouse Controls
+// Mouse Controls
 //==============================================================================
 
 void LaPautaEQProAudioProcessorEditor::EQGraph::mouseDown(
     const juce::MouseEvent& event)
 {
     mouseDownPosition = event.position;
-
     draggingBand = findClosestBand(event.position);
 
     if (draggingBand >= 0)
@@ -501,9 +445,7 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::mouseDown(
         editor.selectBand(draggingBand);
         dragStarted = true;
 
-        updateBandFromMouse(
-            draggingBand,
-            event.position);
+        updateBandFromMouse(draggingBand, event.position);
     }
     else
     {
@@ -511,20 +453,12 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::mouseDown(
     }
 }
 
-//==============================================================================
-
 void LaPautaEQProAudioProcessorEditor::EQGraph::mouseDrag(
     const juce::MouseEvent& event)
 {
     if (dragStarted && draggingBand >= 0)
-    {
-        updateBandFromMouse(
-            draggingBand,
-            event.position);
-    }
+        updateBandFromMouse(draggingBand, event.position);
 }
-
-//==============================================================================
 
 void LaPautaEQProAudioProcessorEditor::EQGraph::mouseUp(
     const juce::MouseEvent&)
@@ -532,8 +466,6 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::mouseUp(
     draggingBand = -1;
     dragStarted = false;
 }
-
-//==============================================================================
 
 void LaPautaEQProAudioProcessorEditor::EQGraph::mouseWheelMove(
     const juce::MouseEvent& event,
@@ -552,9 +484,7 @@ void LaPautaEQProAudioProcessorEditor::EQGraph::mouseWheelMove(
             parameterID("GAIN", band))->load();
 
     const float newGain = juce::jlimit(
-        -18.0f,
-        18.0f,
-        oldGain + wheel.deltaY * 3.0f);
+        -18.0f, 18.0f, oldGain + wheel.deltaY * 3.0f);
 
     setParameter(
         processor.parameters,
@@ -578,42 +508,28 @@ LaPautaEQProAudioProcessorEditor::LaPautaEQProAudioProcessorEditor(
     setSize(900, 550);
     setResizable(false, false);
 
-    // Title.
-    titleLabel.setText(
-        "LA PAUTA EQ PRO",
-        juce::dontSendNotification);
-
+    titleLabel.setText("LA PAUTA EQ PRO", juce::dontSendNotification);
     titleLabel.setFont(
         juce::Font(juce::FontOptions(22.0f).withStyle("Bold")));
-
     titleLabel.setColour(
-        juce::Label::textColourId,
-        juce::Colours::white);
-
+        juce::Label::textColourId, juce::Colours::white);
     addAndMakeVisible(titleLabel);
 
     subtitleLabel.setText(
         "PARAMETRIC EQUALIZER  //  SIX BAND SURGICAL PROCESSING",
         juce::dontSendNotification);
-
-    subtitleLabel.setFont(10.0f);
-
+    subtitleLabel.setFont(juce::FontOptions(10.0f));
     subtitleLabel.setColour(
-        juce::Label::textColourId,
-        mutedText);
-
+        juce::Label::textColourId, mutedText);
     addAndMakeVisible(subtitleLabel);
 
-    // Graph.
     addAndMakeVisible(graph);
 
-    // Band buttons.
     for (int i = 0; i < 6; ++i)
     {
         auto& button = bandButtons[static_cast<size_t>(i)];
 
         button.setButtonText("BAND " + juce::String(i + 1));
-
         button.setClickingTogglesState(false);
 
         button.onClick = [this, i]()
@@ -624,7 +540,6 @@ LaPautaEQProAudioProcessorEditor::LaPautaEQProAudioProcessorEditor(
         addAndMakeVisible(button);
     }
 
-    // Sliders.
     styleSlider(frequencySlider);
     styleSlider(gainSlider);
     styleSlider(qSlider);
@@ -651,19 +566,15 @@ LaPautaEQProAudioProcessorEditor::LaPautaEQProAudioProcessorEditor(
     addAndMakeVisible(qSlider);
     addAndMakeVisible(outputSlider);
 
-    // Labels.
-    const auto setupLabel = [this](juce::Label& label,
-                                   const juce::String& text)
+    const auto setupLabel = [this](
+        juce::Label& label,
+        const juce::String& text)
     {
         label.setText(text, juce::dontSendNotification);
-        label.setFont(juce::Font(12.0f, juce::Font::bold));
+        label.setFont(juce::FontOptions(12.0f).withStyle("Bold"));
         label.setColour(
-            juce::Label::textColourId,
-            juce::Colours::white);
-
-        label.setJustificationType(
-            juce::Justification::centred);
-
+            juce::Label::textColourId, juce::Colours::white);
+        label.setJustificationType(juce::Justification::centred);
         addAndMakeVisible(label);
     };
 
@@ -673,7 +584,6 @@ LaPautaEQProAudioProcessorEditor::LaPautaEQProAudioProcessorEditor(
     setupLabel(outputLabel, "OUTPUT");
     setupLabel(filterTypeLabel, "FILTER TYPE");
 
-    // Filter selector.
     filterTypeBox.addItem("Disabled", 1);
     filterTypeBox.addItem("Low pass", 2);
     filterTypeBox.addItem("Band pass", 3);
@@ -684,20 +594,14 @@ LaPautaEQProAudioProcessorEditor::LaPautaEQProAudioProcessorEditor(
     filterTypeBox.addItem("High shelf", 8);
 
     filterTypeBox.setColour(
-        juce::ComboBox::backgroundColourId,
-        panelColour);
-
+        juce::ComboBox::backgroundColourId, panelColour);
     filterTypeBox.setColour(
-        juce::ComboBox::textColourId,
-        juce::Colours::white);
-
+        juce::ComboBox::textColourId, juce::Colours::white);
     filterTypeBox.setColour(
-        juce::ComboBox::outlineColourId,
-        turquoise);
+        juce::ComboBox::outlineColourId, turquoise);
 
     addAndMakeVisible(filterTypeBox);
 
-    // Output attachment.
     outputAttachment =
         std::make_unique<
             juce::AudioProcessorValueTreeState::SliderAttachment>(
@@ -706,7 +610,6 @@ LaPautaEQProAudioProcessorEditor::LaPautaEQProAudioProcessorEditor(
                 outputSlider);
 
     selectBand(0);
-
     startTimerHz(30);
 }
 
@@ -730,15 +633,182 @@ void LaPautaEQProAudioProcessorEditor::styleSlider(
         juce::Slider::RotaryHorizontalVerticalDrag);
 
     slider.setTextBoxStyle(
-        juce::Slider::TextBoxBelow,
-        false,
-        85,
-        20);
+        juce::Slider::TextBoxBelow, false, 85, 20);
 
     slider.setColour(
-        juce::Slider::rotarySliderFillColourId,
-        turquoise);
-
+        juce::Slider::rotarySliderFillColourId, turquoise);
     slider.setColour(
         juce::Slider::rotarySliderOutlineColourId,
-        juce::Colour(55
+        juce::Colour(55, 66, 76));
+    slider.setColour(
+        juce::Slider::thumbColourId, yellow);
+    slider.setColour(
+        juce::Slider::textBoxTextColourId, juce::Colours::white);
+    slider.setColour(
+        juce::Slider::textBoxBackgroundColourId, panelColour);
+    slider.setColour(
+        juce::Slider::textBoxOutlineColourId,
+        juce::Colours::transparentBlack);
+}
+
+//==============================================================================
+// Select Band
+//==============================================================================
+
+void LaPautaEQProAudioProcessorEditor::selectBand(int band)
+{
+    if (band < 0 || band >= 6)
+        return;
+
+    selectedBand = band;
+    updateSelectedBand();
+    graph.repaint();
+}
+
+//==============================================================================
+// Update Selected Band
+//==============================================================================
+
+void LaPautaEQProAudioProcessorEditor::updateSelectedBand()
+{
+    frequencyAttachment.reset();
+    gainAttachment.reset();
+    qAttachment.reset();
+    filterTypeAttachment.reset();
+
+    frequencyAttachment =
+        std::make_unique<
+            juce::AudioProcessorValueTreeState::SliderAttachment>(
+                audioProcessor.parameters,
+                parameterID("FREQ", selectedBand),
+                frequencySlider);
+
+    gainAttachment =
+        std::make_unique<
+            juce::AudioProcessorValueTreeState::SliderAttachment>(
+                audioProcessor.parameters,
+                parameterID("GAIN", selectedBand),
+                gainSlider);
+
+    qAttachment =
+        std::make_unique<
+            juce::AudioProcessorValueTreeState::SliderAttachment>(
+                audioProcessor.parameters,
+                parameterID("Q", selectedBand),
+                qSlider);
+
+    filterTypeAttachment =
+        std::make_unique<
+            juce::AudioProcessorValueTreeState::ComboBoxAttachment>(
+                audioProcessor.parameters,
+                parameterID("TYPE", selectedBand),
+                filterTypeBox);
+
+    const int type = juce::roundToInt(
+        audioProcessor.parameters.getRawParameterValue(
+            parameterID("TYPE", selectedBand))->load());
+
+    filterTypeBox.setSelectedId(type + 1, juce::dontSendNotification);
+
+    for (int i = 0; i < 6; ++i)
+    {
+        auto& button = bandButtons[static_cast<size_t>(i)];
+        const bool selected = i == selectedBand;
+
+        button.setColour(
+            juce::TextButton::buttonColourId,
+            selected
+                ? bandColours[static_cast<size_t>(i)].withAlpha(0.28f)
+                : panelColour);
+
+        button.setColour(
+            juce::TextButton::textColourOffId,
+            selected
+                ? bandColours[static_cast<size_t>(i)]
+                : mutedText);
+
+        button.setColour(
+            juce::TextButton::textColourOnId,
+            bandColours[static_cast<size_t>(i)]);
+    }
+
+    filterTypeBox.onChange = [this]()
+    {
+        const int selectedID = filterTypeBox.getSelectedId();
+        const bool enabled = selectedID != 1;
+
+        if (auto* parameter = audioProcessor.parameters.getParameter(
+                parameterID("BANDON", selectedBand)))
+        {
+            parameter->setValueNotifyingHost(
+                enabled ? 1.0f : 0.0f);
+        }
+
+        graph.repaint();
+    };
+
+    graph.repaint();
+}
+
+//==============================================================================
+// Timer
+//==============================================================================
+
+void LaPautaEQProAudioProcessorEditor::timerCallback()
+{
+    graph.repaint();
+}
+
+//==============================================================================
+// Main Paint
+//==============================================================================
+
+void LaPautaEQProAudioProcessorEditor::paint(
+    juce::Graphics& g)
+{
+    g.fillAll(backgroundColour);
+
+    g.setColour(juce::Colour(35, 44, 53));
+    g.drawHorizontalLine(57, 20.0f, 880.0f);
+
+    g.setColour(turquoise);
+    g.fillRoundedRectangle(20.0f, 49.0f, 42.0f, 3.0f, 1.5f);
+
+    g.setColour(juce::Colour(35, 44, 53));
+    g.drawRoundedRectangle(
+        getLocalBounds().toFloat().reduced(1.0f),
+        8.0f,
+        1.0f);
+}
+
+//==============================================================================
+// Layout
+//==============================================================================
+
+void LaPautaEQProAudioProcessorEditor::resized()
+{
+    titleLabel.setBounds(22, 10, 260, 30);
+    subtitleLabel.setBounds(285, 17, 480, 20);
+
+    graph.setBounds(20, 65, 860, 285);
+
+    for (int i = 0; i < 6; ++i)
+    {
+        bandButtons[static_cast<size_t>(i)].setBounds(
+            22 + i * 94, 365, 86, 29);
+    }
+
+    frequencyLabel.setBounds(25, 405, 150, 20);
+    gainLabel.setBounds(190, 405, 130, 20);
+    qLabel.setBounds(345, 405, 100, 20);
+    filterTypeLabel.setBounds(475, 405, 180, 20);
+    outputLabel.setBounds(720, 405, 150, 20);
+
+    frequencySlider.setBounds(35, 423, 130, 105);
+    gainSlider.setBounds(190, 423, 130, 105);
+    qSlider.setBounds(345, 423, 100, 105);
+
+    filterTypeBox.setBounds(475, 445, 180, 32);
+
+    outputSlider.setBounds(725, 423, 140, 105);
+}
