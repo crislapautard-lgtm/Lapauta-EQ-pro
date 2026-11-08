@@ -72,3 +72,11 @@ target_link_libraries(LaPautaEQPro
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags
 )
+
+# ESTO LO CONVIERTE EN UN SOLO ARCHIVO COMO LaPautaSL.vst3
+add_custom_command(TARGET LaPautaEQPro_VST3 POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:LaPautaEQPro_VST3>"
+        "${CMAKE_BINARY_DIR}/LaPautaEQPro.vst3"
+    COMMENT "Creando LaPautaEQPro.vst3 como archivo unico"
+)
