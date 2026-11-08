@@ -62,35 +62,10 @@ void LaPautaEQProAudioProcessor::processBlock(juce::AudioBuffer<float>& buffer, 
     auto midGain = apvts.getRawParameterValue("MIDGAIN")->load();
     auto highGain = apvts.getRawParameterValue("HIGHGAIN")->load();
 
-    auto* lowCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(), 100.0, 1.0, juce::Decibels::decibelsToGain(lowGain));
-    auto* midCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(), 1000.0, 1.0, juce::Decibels::decibelsToGain(midGain));
-    auto* highCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(), 8000.0, 1.0, juce::Decibels::decibelsToGain(highGain));
+    auto lowCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(), 100.0, 1.0, juce::Decibels::decibelsToGain(lowGain));
+    auto midCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(), 1000.0, 1.0, juce::Decibels::decibelsToGain(midGain));
+    auto highCoeffs = juce::dsp::IIR::Coefficients<float>::makePeakFilter(getSampleRate(), 8000.0, 1.0, juce::Decibels::decibelsToGain(highGain));
 
     *filterChain.get<0>().coefficients = *lowCoeffs;
     *filterChain.get<1>().coefficients = *midCoeffs;
-    *filterChain.get<2>().coefficients = *highCoeffs;
-
-    juce::dsp::AudioBlock<float> block(buffer);
-    juce::dsp::ProcessContextReplacing<float> context(block);
-    filterChain.process(context);
-}
-
-bool LaPautaEQProAudioProcessor::hasEditor() const { return true; }
-juce::AudioProcessorEditor* LaPautaEQProAudioProcessor::createEditor() { return new LaPautaEQProAudioProcessorEditor(*this); }
-
-void LaPautaEQProAudioProcessor::getStateInformation(juce::MemoryBlock& destData)
-{
-    auto state = apvts.copyState();
-    std::unique_ptr<juce::XmlElement> xml(state.createXml());
-    copyXmlToBinary(*xml, destData);
-}
-
-void LaPautaEQProAudioProcessor::setStateInformation(const void* data, int sizeInBytes)
-{
-    std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
-    if (xmlState.get() != nullptr)
-        if (xmlState->hasTagName(apvts.state.getType()))
-            apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
-}
-
-juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter() { return new LaPautaEQProAudioProcessor(); }
+   
