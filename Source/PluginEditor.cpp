@@ -1,531 +1,107 @@
 #include "PluginEditor.h"
+#include "PluginProcessor.h"
 
-namespace
+LaPautaEQProAudioProcessorEditor::LaPautaEQProAudioProcessorEditor (LaPautaEQProAudioProcessor& p)
+    : AudioProcessorEditor (&p), audioProcessor (p)
 {
-    const juce::Colour background(0xff101519);
-    const juce::Colour panel(0xff1a2329);
-    const juce::Colour panelLight(0xff222d34);
-    const juce::Colour turquoise(0xff38d9c6);
-    const juce::Colour turquoiseDark(0xff167f79);
-    const juce::Colour white(0xffedf4f4);
-    const juce::Colour muted(0xff87969d);
-    const juce::Colour grid(0xff303b42);
-}
+    setSize (900, 540);
+    startTimerHz (30);
 
-LaPautaEQProAudioProcessorEditor::
-LaPautaEQProAudioProcessorEditor(
-    LaPautaEQProAudioProcessor& processor)
-    : AudioProcessorEditor(&processor),
-      audioProcessor(processor)
-{
-    setSize(1200, 760);
+    titleLabel.setText ("LA PAUTA EQ PRO", juce::dontSendNotification);
+    titleLabel.setFont (juce::Font (juce::FontOptions (24.0f, juce::Font::bold)));
+    titleLabel.setColour (juce::Label::textColourId, juce::Colour (0xff00e5a0));
+    titleLabel.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (titleLabel);
 
-    titleLabel.setText(
-        "LA PAUTA EQ PRO",
-        juce::dontSendNotification);
+    subtitleLabel.setText ("PROFESSIONAL PARAMETRIC EQ  •  8 BANDAS  •  LIVIANO", juce::dontSendNotification);
+    subtitleLabel.setFont (juce::Font (juce::FontOptions (11.0f)));
+    subtitleLabel.setColour (juce::Label::textColourId, juce::Colour (0xff8a93a6));
+    subtitleLabel.setJustificationType (juce::Justification::centred);
+    addAndMakeVisible (subtitleLabel);
 
-    titleLabel.setFont(
-        juce::Font(27.0f, juce::Font::bold));
+    analyserLabel.setText ("ANALYSER", juce::dontSendNotification);
+    analyserLabel.setFont (juce::Font (juce::FontOptions (10.0f, juce::Font::bold)));
+    analyserLabel.setColour (juce::Label::textColourId, juce::Colour (0xff8a93a6));
+    addAndMakeVisible (analyserLabel);
 
-    titleLabel.setColour(
-        juce::Label::textColourId,
-        white);
+    const char* names[8] = { "LOW", "LOW-MID", "MID 1", "MID 2", "MID 3", "HIGH-MID", "HIGH", "AIR" };
 
-    addAndMakeVisible(titleLabel);
-
-    subtitleLabel.setText(
-        "PROFESSIONAL PARAMETRIC EQUALIZER",
-        juce::dontSendNotification);
-
-    subtitleLabel.setFont(juce::Font(11.0f));
-
-    subtitleLabel.setColour(
-        juce::Label::textColourId,
-        turquoise);
-
-    addAndMakeVisible(subtitleLabel);
-
-    outputLabel.setText(
-        "OUTPUT",
-        juce::dontSendNotification);
-
-    outputLabel.setFont(juce::Font(10.0f));
-
-    outputLabel.setColour(
-        juce::Label::textColourId,
-        muted);
-
-    addAndMakeVisible(outputLabel);
-
-    mixLabel.setText(
-        "DRY / WET",
-        juce::dontSendNotification);
-
-    mixLabel.setFont(juce::Font(10.0f));
-
-    mixLabel.setColour(
-        juce::Label::textColourId,
-        muted);
-
-    addAndMakeVisible(mixLabel);
-
-    configureSlider(outputSlider);
-    configureSlider(mixSlider);
-
-    outputSlider.setRange(-24.0, 12.0, 0.1);
-    outputSlider.setTextValueSuffix(" dB");
-
-    mixSlider.setRange(0.0, 100.0, 0.1);
-    mixSlider.setTextValueSuffix(" %");
-
-    outputAttachment =
-        std::make_unique<
-            juce::AudioProcessorValueTreeState::SliderAttachment>(
-                audioProcessor.parameters,
-                "output",
-                outputSlider);
-
-    mixAttachment =
-        std::make_unique<
-            juce::AudioProcessorValueTreeState::SliderAttachment>(
-                audioProcessor.parameters,
-                "mix",
-                mixSlider);
-
-    addAndMakeVisible(outputSlider);
-    addAndMakeVisible(mixSlider);
-
-    resetButton.setButtonText("RESET EQ");
-
-    resetButton.setColour(
-        juce::TextButton::buttonColourId,
-        panelLight);
-
-    resetButton.setColour(
-        juce::TextButton::textColourOffId,
-        turquoise);
-
-    resetButton.onClick = [this]
+    for (int i = 0; i < 8; ++i)
     {
-        for (int i = 0; i < numberOfBands; ++i)
-        {
-            gainSliders[i].setValue(
-                0.0,
-                juce::sendNotificationSync);
-        }
-    };
+        auto id = "BAND" + juce::String (i + 1);
+        auto* f = new juce::Slider(); f->setSliderStyle (juce::Slider::RotaryVerticalDrag); f->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 78, 18); f->setRange (20, 20000, 1); f->setSkewFactorFromMidPoint (1000); f->setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xff00e5a0)); addAndMakeVisible (f); freqSliders.add (f);
+        freqAttachments.add (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, id + "_FREQ", *f));
 
-    addAndMakeVisible(resetButton);
+        auto* g = new juce::Slider(); g->setSliderStyle (juce::Slider::RotaryVerticalDrag); g->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 78, 18); g->setRange (-15, 15, 0.1); g->setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xffffffff)); addAndMakeVisible (g); gainSliders.add (g);
+        gainAttachments.add (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, id + "_GAIN", *g));
 
-    for (int i = 0; i < numberOfBands; ++i)
-    {
-        const juce::String id = juce::String(i + 1);
+        auto* q = new juce::Slider(); q->setSliderStyle (juce::Slider::RotaryVerticalDrag); q->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 78, 18); q->setRange (0.3, 10, 0.1); q->setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xff8a93a6)); addAndMakeVisible (q); qSliders.add (q);
+        qAttachments.add (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, id + "_Q", *q));
 
-        bandLabels[i].setText(
-            "BAND " + id,
-            juce::dontSendNotification);
+        auto* lab = new juce::Label(); lab->setText (juce::String (names[i]) + " - B" + juce::String (i+1), juce::dontSendNotification); lab->setFont (juce::Font (juce::FontOptions (10.0f, juce::Font::bold))); lab->setColour (juce::Label::textColourId, juce::Colour (0xffffffff)); lab->setJustificationType (juce::Justification::centred); addAndMakeVisible (lab); bandLabels.add (lab);
 
-        bandLabels[i].setFont(
-            juce::Font(11.0f, juce::Font::bold));
-
-        bandLabels[i].setColour(
-            juce::Label::textColourId,
-            turquoise);
-
-        bandLabels[i].setJustificationType(
-            juce::Justification::centred);
-
-        addAndMakeVisible(bandLabels[i]);
-
-        bandButtons[i].setButtonText("ON");
-
-        bandButtons[i].setColour(
-            juce::ToggleButton::textColourId,
-            white);
-
-        addAndMakeVisible(bandButtons[i]);
-
-        configureSlider(frequencySliders[i]);
-        configureSlider(gainSliders[i]);
-        configureSlider(qSliders[i]);
-
-        frequencySliders[i].setRange(
-            20.0,
-            20000.0,
-            0.01);
-
-        frequencySliders[i].setSkewFactorFromMidPoint(
-            1000.0);
-
-        frequencySliders[i].setTextValueSuffix(" Hz");
-
-        gainSliders[i].setRange(
-            -18.0,
-            18.0,
-            0.01);
-
-        gainSliders[i].setTextValueSuffix(" dB");
-
-        qSliders[i].setRange(
-            0.1,
-            10.0,
-            0.01);
-
-        qSliders[i].setTextValueSuffix(" Q");
-
-        addAndMakeVisible(frequencySliders[i]);
-        addAndMakeVisible(gainSliders[i]);
-        addAndMakeVisible(qSliders[i]);
-
-        bandAttachments[i] =
-            std::make_unique<
-                juce::AudioProcessorValueTreeState::ButtonAttachment>(
-                    audioProcessor.parameters,
-                    "band" + id + "_on",
-                    bandButtons[i]);
-
-        frequencyAttachments[i] =
-            std::make_unique<
-                juce::AudioProcessorValueTreeState::SliderAttachment>(
-                    audioProcessor.parameters,
-                    "band" + id + "_freq",
-                    frequencySliders[i]);
-
-        gainAttachments[i] =
-            std::make_unique<
-                juce::AudioProcessorValueTreeState::SliderAttachment>(
-                    audioProcessor.parameters,
-                    "band" + id + "_gain",
-                    gainSliders[i]);
-
-        qAttachments[i] =
-            std::make_unique<
-                juce::AudioProcessorValueTreeState::SliderAttachment>(
-                    audioProcessor.parameters,
-                    "band" + id + "_q",
-                    qSliders[i]);
+        auto* on = new juce::ToggleButton(); on->setButtonText ("ON"); on->setColour (juce::ToggleButton::textColourId, juce::Colour (0xff00e5a0)); addAndMakeVisible (on); bandOnButtons.add (on);
+        onAttachments.add (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (audioProcessor.apvts, id + "_ON", *on));
     }
 
-    startTimerHz(30);
+    bypassButton.setButtonText ("BYPASS"); bypassButton.setClickingTogglesState (true); bypassButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff202634)); addAndMakeVisible (bypassButton);
+    bypassAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (audioProcessor.apvts, "BYPASS", bypassButton);
+
+    resetButton.setButtonText ("RESET"); addAndMakeVisible (resetButton);
+    resetButton.onClick = [this] { for (int i=0;i<8;++i){ auto id="BAND"+juce::String(i+1); audioProcessor.apvts.getParameter(id+"_GAIN")->setValueNotifyingHost(0.5f); } };
+
+    soloButton.setButtonText ("SOLO"); addAndMakeVisible (soloButton);
+    analyserButton.setButtonText ("ANALYSER ON"); addAndMakeVisible (analyserButton);
+
+    modeLabel.setText ("MODE", juce::dontSendNotification); modeLabel.setFont (juce::Font (juce::FontOptions (10.0f, juce::Font::bold))); addAndMakeVisible (modeLabel);
+    modeBox.addItemList ({ "Stereo", "Mid", "Side" }, 1); addAndMakeVisible (modeBox);
+    modeAttachment = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (audioProcessor.apvts, "MODE", modeBox);
+
+    outputLabel.setText ("OUTPUT", juce::dontSendNotification); outputLabel.setFont (juce::Font (juce::FontOptions (10.0f, juce::Font::bold))); addAndMakeVisible (outputLabel);
+    outputSlider.setSliderStyle (juce::Slider::LinearHorizontal); outputSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 18); outputSlider.setRange (-24, 12, 0.1); addAndMakeVisible (outputSlider);
+    outputAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, "OUTPUT", outputSlider);
+
+    mixLabel.setText ("MIX", juce::dontSendNotification); mixLabel.setFont (juce::Font (juce::FontOptions (10.0f, juce::Font::bold))); addAndMakeVisible (mixLabel);
+    mixSlider.setSliderStyle (juce::Slider::LinearHorizontal); mixSlider.setTextBoxStyle (juce::Slider::TextBoxRight, false, 60, 18); mixSlider.setRange (0, 100, 1); addAndMakeVisible (mixSlider);
+    mixAttachment = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, "MIX", mixSlider);
 }
 
-LaPautaEQProAudioProcessorEditor::
-~LaPautaEQProAudioProcessorEditor()
+LaPautaEQProAudioProcessorEditor::~LaPautaEQProAudioProcessorEditor() { stopTimer(); }
+void LaPautaEQProAudioProcessorEditor::timerCallback() { analyserLevel = audioProcessor.analyserValue; repaint(); }
+
+void LaPautaEQProAudioProcessorEditor::paint (juce::Graphics& g)
 {
-    stopTimer();
-}
-
-void LaPautaEQProAudioProcessorEditor::configureSlider(
-    juce::Slider& slider)
-{
-    slider.setSliderStyle(
-        juce::Slider::RotaryHorizontalVerticalDrag);
-
-    slider.setTextBoxStyle(
-        juce::Slider::TextBoxBelow,
-        false,
-        66,
-        18);
-
-    slider.setColour(
-        juce::Slider::rotarySliderFillColourId,
-        turquoise);
-
-    slider.setColour(
-        juce::Slider::rotarySliderOutlineColourId,
-        panelLight);
-
-    slider.setColour(
-        juce::Slider::thumbColourId,
-        white);
-
-    slider.setColour(
-        juce::Slider::textBoxTextColourId,
-        white);
-
-    slider.setColour(
-        juce::Slider::textBoxOutlineColourId,
-        juce::Colours::transparentBlack);
-
-    slider.setColour(
-        juce::Slider::textBoxBackgroundColourId,
-        panel);
-}
-
-void LaPautaEQProAudioProcessorEditor::paint(
-    juce::Graphics& g)
-{
-    g.fillAll(background);
-
-    // Header
-    g.setColour(panel);
-    g.fillRoundedRectangle(
-        18.0f,
-        15.0f,
-        static_cast<float>(getWidth() - 36),
-        68.0f,
-        10.0f);
-
-    g.setColour(turquoise);
-    g.fillRoundedRectangle(
-        18.0f,
-        84.0f,
-        static_cast<float>(getWidth() - 36),
-        2.0f,
-        1.0f);
-
-    // Main analyzer panel
-    const juce::Rectangle<float> graph(
-        24.0f,
-        105.0f,
-        static_cast<float>(getWidth() - 48),
-        315.0f);
-
-    g.setColour(panel);
-    g.fillRoundedRectangle(graph, 12.0f);
-
-    g.saveState();
-    g.reduceClipRegion(graph.toNearestInt());
-
-    // Grid lines
-    g.setColour(grid);
-    g.setStrokeType(1.0f);
-
-    for (int i = 1; i < 8; ++i)
+    g.fillAll (juce::Colour (0xff0f1115));
+    auto bounds = getLocalBounds().reduced (12);
+    g.setColour (juce::Colour (0xff1a1e26)); g.fillRoundedRectangle (bounds.toFloat(), 12.0f);
+    g.setColour (juce::Colour (0xff00e5a0)); g.fillRoundedRectangle (juce::Rectangle<float> ((float)bounds.getX(), (float)bounds.getY(), (float)bounds.getWidth(), 3.0f), 1.5f);
+    g.setColour (juce::Colour (0xff2a3140));
+    for (int i=1;i<5;++i) g.drawHorizontalLine (120 + i*20, 40.0f, 860.0f);
+    juce::Path curve; bool first=true;
+    for (int x=40; x<=860; x+=10)
     {
-        const float x =
-            graph.getX() + graph.getWidth() * i / 8.0f;
-
-        g.drawVerticalLine(
-            static_cast<int>(x),
-            graph.getY() + 25.0f,
-            graph.getBottom() - 15.0f);
+        float freq = 20.0f * std::pow (1000.0f, (x-40)/820.0f);
+        float y = 180.0f;
+        for (int b=0;b<8;++b){ auto id="BAND"+juce::String(b+1); float bf=*audioProcessor.apvts.getRawParameterValue(id+"_FREQ"); float bg=*audioProcessor.apvts.getRawParameterValue(id+"_GAIN"); float dist=std::abs(std::log(freq/bf)); y -= bg * 4.0f * std::exp(-dist*dist*2.0f); }
+        y += analyserLevel * 30.0f * std::sin (x*0.05f);
+        if (first){ curve.startNewSubPath ((float)x, y); first=false; } else curve.lineTo ((float)x, y);
     }
-
-    for (int i = 1; i < 5; ++i)
-    {
-        const float y =
-            graph.getY() + graph.getHeight() * i / 5.0f;
-
-        g.drawHorizontalLine(
-            static_cast<int>(y),
-            graph.getX() + 12.0f,
-            graph.getRight() - 12.0f);
-    }
-
-    // Zero dB reference
-    const float zeroY =
-        graph.getY() + graph.getHeight() * 0.52f;
-
-    g.setColour(turquoiseDark);
-    g.drawHorizontalLine(
-        static_cast<int>(zeroY),
-        graph.getX() + 10.0f,
-        graph.getRight() - 10.0f);
-
-    // Spectrum analyzer
-    juce::Path spectrumPath;
-
-    const int spectrumPoints = fftSize / 2;
-
-    for (int i = 1; i < spectrumPoints; ++i)
-    {
-        const float x =
-            graph.getX()
-            + (static_cast<float>(i) / spectrumPoints)
-            * graph.getWidth();
-
-        const float magnitude = juce::jlimit(
-            0.0f,
-            1.0f,
-            spectrum[static_cast<size_t>(i)] * 4.0f);
-
-        const float y =
-            graph.getBottom() - 18.0f - magnitude * 175.0f;
-
-        if (i == 1)
-            spectrumPath.startNewSubPath(x, y);
-        else
-            spectrumPath.lineTo(x, y);
-    }
-
-    g.setColour(turquoise.withAlpha(0.85f));
-    g.strokePath(
-        spectrumPath,
-        juce::PathStrokeType(
-            2.0f,
-            juce::PathStrokeType::curved,
-            juce::PathStrokeType::rounded));
-
-    // Bottom labels
-    g.setColour(muted);
-    g.setFont(10.0f);
-
-    g.drawText(
-        "20 Hz",
-        static_cast<int>(graph.getX() + 10),
-        static_cast<int>(graph.getBottom() - 20),
-        55,
-        14,
-        juce::Justification::left);
-
-    g.drawText(
-        "20 kHz",
-        static_cast<int>(graph.getRight() - 65),
-        static_cast<int>(graph.getBottom() - 20),
-        55,
-        14,
-        juce::Justification::right);
-
-    g.restoreState();
-
-    // Controls panel
-    g.setColour(panel);
-    g.fillRoundedRectangle(
-        18.0f,
-        435.0f,
-        static_cast<float>(getWidth() - 36),
-        295.0f,
-        12.0f);
-
-    g.setColour(muted);
-    g.setFont(10.0f);
-
-    g.drawText(
-        "FREQUENCY",
-        25,
-        485,
-        75,
-        16,
-        juce::Justification::left);
-
-    g.drawText(
-        "GAIN",
-        25,
-        570,
-        75,
-        16,
-        juce::Justification::left);
-
-    g.drawText(
-        "Q",
-        25,
-        655,
-        75,
-        16,
-        juce::Justification::left);
-
-    g.setColour(turquoise);
-    g.setFont(10.0f);
-
-    g.drawText(
-        "LA PAUTA AUDIO TECHNOLOGY",
-        0,
-        getHeight() - 20,
-        getWidth(),
-        14,
-        juce::Justification::centred);
+    g.setColour (juce::Colour (0xff00e5a0));
+    g.strokePath (curve, juce::PathStrokeType (2.5f, juce::PathStrokeType::curved, juce::PathStrokeType::rounded));
+    g.setColour (juce::Colour (0xff2a3140)); g.fillRect (860, 120, 12, 100);
+    g.setColour (juce::Colour (0xff00e5a0)); g.fillRect (860, 220 - (int)(analyserLevel*100), 12, (int)(analyserLevel*100));
 }
 
 void LaPautaEQProAudioProcessorEditor::resized()
 {
-    titleLabel.setBounds(
-        32, 22, 350, 34);
-
-    subtitleLabel.setBounds(
-        34, 54, 350, 18);
-
-    resetButton.setBounds(
-        getWidth() - 385,
-        30,
-        100,
-        30);
-
-    outputLabel.setBounds(
-        getWidth() - 265,
-        19,
-        85,
-        16);
-
-    outputSlider.setBounds(
-        getWidth() - 275,
-        32,
-        100,
-        48);
-
-    mixLabel.setBounds(
-        getWidth() - 155,
-        19,
-        85,
-        16);
-
-    mixSlider.setBounds(
-        getWidth() - 165,
-        32,
-        100,
-        48);
-
-    const int left = 105;
-    const int right = getWidth() - 35;
-    const int availableWidth = right - left;
-    const int columnWidth = availableWidth / numberOfBands;
-
-    for (int i = 0; i < numberOfBands; ++i)
-    {
-        const int x = left + i * columnWidth;
-
-        bandLabels[i].setBounds(
-            x,
-            445,
-            columnWidth - 5,
-            20);
-
-        bandButtons[i].setBounds(
-            x + 15,
-            465,
-            columnWidth - 25,
-            22);
-
-        frequencySliders[i].setBounds(
-            x + 2,
-            490,
-            columnWidth - 8,
-            75);
-
-        gainSliders[i].setBounds(
-            x + 2,
-            575,
-            columnWidth - 8,
-            75);
-
-        qSliders[i].setBounds(
-            x + 2,
-            660,
-            columnWidth - 8,
-            65);
-    }
-}
-
-void LaPautaEQProAudioProcessorEditor::timerCallback()
-{
-    fftData.fill(0.0f);
-
-    audioProcessor.getAnalyzerData(
-        fftData.data(),
-        fftSize);
-
-    window.multiplyWithWindowingTable(
-        fftData.data(),
-        fftSize);
-
-    fft.performFrequencyOnlyForwardTransform(
-        fftData.data());
-
-    for (int i = 0; i < fftSize / 2; ++i)
-    {
-        spectrum[static_cast<size_t>(i)] =
-            fftData[static_cast<size_t>(i)];
-    }
-
-    repaint();
+    auto area = getLocalBounds().reduced (20);
+    titleLabel.setBounds (area.removeFromTop (32));
+    subtitleLabel.setBounds (area.removeFromTop (18));
+    area.removeFromTop (8); analyserLabel.setBounds (area.removeFromTop (14)); area.removeFromTop (96);
+    bypassButton.setBounds (20, getHeight()-42, 110, 28); resetButton.setBounds (140, getHeight()-42, 110, 28); soloButton.setBounds (260, getHeight()-42, 80, 28); analyserButton.setBounds (350, getHeight()-42, 120, 28);
+    modeLabel.setBounds (500, getHeight()-42, 50, 28); modeBox.setBounds (550, getHeight()-42, 90, 28);
+    outputLabel.setBounds (650, getHeight()-42, 55, 18); outputSlider.setBounds (705, getHeight()-42, 95, 28);
+    int bw = (getWidth()-40)/8;
+    for (int i=0;i<8;++i){ int x=20+i*bw; bandLabels[i]->setBounds (x, 238, bw-8, 18); bandOnButtons[i]->setBounds (x+20, 256, bw-48, 18); freqSliders[i]->setBounds (x, 278, bw-8, 62); gainSliders[i]->setBounds (x, 344, bw-8, 62); qSliders[i]->setBounds (x, 410, bw-8, 52); }
+    mixLabel.setBounds (20, 500, 40, 18); mixSlider.setBounds (60, 500, 150, 18);
 }
