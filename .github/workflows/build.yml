@@ -1,35 +1,79 @@
-name: Build VST3 + Installer
+
+name: La Pauta EQ Pro - Windows VST3 Build
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - master
+
+  pull_request:
+    branches:
+      - main
+      - master
+
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   build:
-    runs-on: windows-latest
+    name: Build VST3 - Windows x64
+    runs-on: windows-2022
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-
-      - name: Build
-        run: cmake --build build --config Release --parallel
-
-      - name: Build Installer
+      - name: Verify build tools
+        shell: pwsh
         run: |
-          choco install innosetup -y
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\LaPautaEQPro.iss
+          cmake --version
+          git --version
 
-      - name: Upload Installer
+      - name: Configure JUCE project
+        shell: pwsh
+        run: |
+          cmake -S . -B build -A x64 `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DFETCHCONTENT_FULLY_DISCONNECTED=OFF
+
+      - name: Build La Pauta EQ Pro
+        shell: pwsh
+        run: |
+          cmake --build build `
+            --config Release `
+            --parallel 2
+
+      - name: Verify VST3 plugin
+        shell: pwsh
+        run: |
+          $plugin = "build/LaPautaEQPro_artefacts/Release/VST3/LaPauta EQ Pro.vst3"
+
+          if (!(Test-Path $plugin)) {
+            Write-Error "VST3 plugin was not generated."
+            exit 1
+          }
+
+          Write-Host "VST3 plugin generated successfully."
+          Get-ChildItem $plugin -Recurse
+
+      - name: Package VST3
+        shell: pwsh
+        run: |
+          $plugin = "build/LaPautaEQPro_artefacts/Release/VST3/LaPauta EQ Pro.vst3"
+
+          Compress-Archive `
+            -Path $plugin `
+            -DestinationPath "LaPauta-EQ-Pro-VST3-Windows-x64.zip" `
+            -Force
+
+      - name: Upload VST3 artifact
         uses: actions/upload-artifact@v4
         with:
-          name: LaPautaEQPro-Setup
-          path: installer/Output/LaPautaEQPro-Setup.exe
-
-      - name: Upload VST3
-        uses: actions/upload-artifact@v4
-        with:
-          name: LaPautaEQPro-VST3
-          path: build/LaPautaEQPro_artefacts/Release/VST3/LaPautaEQPro.vst3
+          name: LaPauta-EQ-Pro-VST3-Windows-x64
+          path: LaPauta-EQ-Pro-VST3-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 30
+          
