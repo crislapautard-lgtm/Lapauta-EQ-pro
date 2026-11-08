@@ -1,6 +1,5 @@
 #pragma once
-#include <juce_audio_processors/juce_audio_processors.h>
-#include <juce_dsp/juce_dsp.h>
+#include <JuceHeader.h>
 
 class LaPautaEQProAudioProcessor : public juce::AudioProcessor
 {
@@ -25,9 +24,19 @@ public:
     void changeProgramName(int index, const juce::String& newName) override;
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
     juce::AudioProcessorValueTreeState apvts;
+    static constexpr int fftOrder = 11;
+    static constexpr int fftSize = 1 << fftOrder;
+    float fftData[2 * fftSize] = {};
+    bool nextFFTBlockReady = false;
 private:
-    juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
-    juce::dsp::ProcessorChain<juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Filter<float>, juce::dsp::IIR::Filter<float>> filterChain;
+    using Filter = juce::dsp::IIR::Filter<float>;
+    using MonoChain = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter, Filter, Filter>;
+    MonoChain leftChain, rightChain;
+    void updateFilters();
+    float fifo[fftSize] = {};
+    int fifoIndex = 0;
+    void pushSample(float s);
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LaPautaEQProAudioProcessor)
 };
