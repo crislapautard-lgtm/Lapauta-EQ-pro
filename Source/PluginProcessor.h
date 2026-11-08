@@ -46,7 +46,6 @@ private:
     using Coefficients = juce::dsp::IIR::Coefficients<float>;
 
     std::array<std::array<Filter, 2>, numBands> filters;
-    std::array<std::array<juce::dsp::IIR::Coefficients<float>::Ptr, 2>, numBands> coefficients;
 
     void updateFilters();
 
@@ -56,6 +55,7 @@ private:
     static constexpr int fftSize = 1 << fftOrder;
 
     juce::dsp::FFT forwardFFT { fftOrder };
+
     juce::dsp::WindowingFunction<float> window {
         fftSize,
         juce::dsp::WindowingFunction<float>::hann
