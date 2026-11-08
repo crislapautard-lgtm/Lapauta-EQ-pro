@@ -29,19 +29,20 @@ LaPautaEQProAudioProcessorEditor::LaPautaEQProAudioProcessorEditor (LaPautaEQPro
     for (int i = 0; i < 8; ++i)
     {
         auto id = "BAND" + juce::String (i + 1);
+
         auto* f = new juce::Slider(); f->setSliderStyle (juce::Slider::RotaryVerticalDrag); f->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 78, 18); f->setRange (20, 20000, 1); f->setSkewFactorFromMidPoint (1000); f->setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xff00e5a0)); addAndMakeVisible (f); freqSliders.add (f);
-        freqAttachments.add (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, id + "_FREQ", *f));
+        freqAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, id + "_FREQ", *f));
 
         auto* g = new juce::Slider(); g->setSliderStyle (juce::Slider::RotaryVerticalDrag); g->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 78, 18); g->setRange (-15, 15, 0.1); g->setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xffffffff)); addAndMakeVisible (g); gainSliders.add (g);
-        gainAttachments.add (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, id + "_GAIN", *g));
+        gainAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, id + "_GAIN", *g));
 
         auto* q = new juce::Slider(); q->setSliderStyle (juce::Slider::RotaryVerticalDrag); q->setTextBoxStyle (juce::Slider::TextBoxBelow, false, 78, 18); q->setRange (0.3, 10, 0.1); q->setColour (juce::Slider::rotarySliderFillColourId, juce::Colour (0xff8a93a6)); addAndMakeVisible (q); qSliders.add (q);
-        qAttachments.add (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, id + "_Q", *q));
+        qAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, id + "_Q", *q));
 
         auto* lab = new juce::Label(); lab->setText (juce::String (names[i]) + " - B" + juce::String (i+1), juce::dontSendNotification); lab->setFont (juce::Font (juce::FontOptions (10.0f, juce::Font::bold))); lab->setColour (juce::Label::textColourId, juce::Colour (0xffffffff)); lab->setJustificationType (juce::Justification::centred); addAndMakeVisible (lab); bandLabels.add (lab);
 
         auto* on = new juce::ToggleButton(); on->setButtonText ("ON"); on->setColour (juce::ToggleButton::textColourId, juce::Colour (0xff00e5a0)); addAndMakeVisible (on); bandOnButtons.add (on);
-        onAttachments.add (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (audioProcessor.apvts, id + "_ON", *on));
+        onAttachments.push_back (std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (audioProcessor.apvts, id + "_ON", *on));
     }
 
     bypassButton.setButtonText ("BYPASS"); bypassButton.setClickingTogglesState (true); bypassButton.setColour (juce::TextButton::buttonColourId, juce::Colour (0xff202634)); addAndMakeVisible (bypassButton);
