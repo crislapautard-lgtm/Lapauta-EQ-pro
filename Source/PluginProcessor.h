@@ -1,42 +1,70 @@
+
 #pragma once
+
 #include <JuceHeader.h>
+#include <array>
+#include <atomic>
 
 class LaPautaEQProAudioProcessor : public juce::AudioProcessor
 {
 public:
+    static constexpr int numBands = 6;
+
     LaPautaEQProAudioProcessor();
-    ~LaPautaEQProAudioProcessor() override;
+    ~LaPautaEQProAudioProcessor() override = default;
+
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
     void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
     juce::AudioProcessorEditor* createEditor() override;
-    bool hasEditor() const override;
+    bool hasEditor() const override { return true; }
+
     const juce::String getName() const override;
-    bool acceptsMidi() const override;
-    bool producesMidi() const override;
-    bool isMidiEffect() const override;
-    double getTailLengthSeconds() const override;
-    int getNumPrograms() override;
-    int getCurrentProgram() override;
-    void setCurrentProgram(int index) override;
-    const juce::String getProgramName(int index) override;
-    void changeProgramName(int index, const juce::String& newName) override;
+    bool acceptsMidi() const override { return false; }
+    bool producesMidi() const override { return false; }
+    bool isMidiEffect() const override { return false; }
+
+    double getTailLengthSeconds() const override { return 0.0; }
+
+    int getNumPrograms() override { return 1; }
+    int getCurrentProgram() override { return 0; }
+    void setCurrentProgram(int) override {}
+    const juce::String getProgramName(int) override { return {}; }
+    void changeProgramName(int, const juce::String&) override {}
+
     void getStateInformation(juce::MemoryBlock& destData) override;
     void setStateInformation(const void* data, int sizeInBytes) override;
-    static juce::AudioProcessorValueTreeState::ParameterLayout createParameters();
-    juce::AudioProcessorValueTreeState apvts;
-    static constexpr int fftOrder = 11;
-    static constexpr int fftSize = 1 << fftOrder;
-    float fftData[2 * fftSize] = {};
-    bool nextFFTBlockReady = false;
+
+    juce::AudioProcessorValueTreeState parameters;
+
+    float getSpectrumValue(int index) const;
+
 private:
     using Filter = juce::dsp::IIR::Filter<float>;
-    using MonoChain = juce::dsp::ProcessorChain<Filter, Filter, Filter, Filter, Filter, Filter>;
-    MonoChain leftChain, rightChain;
+    using Coefficients = juce::dsp::IIR::Coefficients<float>;
+
+    std::array<std::array<Filter, 2>, numBands> filters;
+    std::array<std::array<juce::dsp::IIR::Coefficients<float>::Ptr, 2>, numBands> coefficients;
+
     void updateFilters();
-    float fifo[fftSize] = {};
-    int fifoIndex = 0;
-    void pushSample(float s);
+
+    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+
+    static constexpr int fftOrder = 10;
+    static constexpr int fftSize = 1 << fftOrder;
+
+    juce::dsp::FFT forwardFFT { fftOrder };
+    juce::dsp::WindowingFunction<float> window {
+        fftSize,
+        juce::dsp::WindowingFunction<float>::hann
+    };
+
+    std::array<float, fftSize * 2> fftData {};
+    std::atomic<int> fifoIndex { 0 };
+    std::array<float, fftSize> fifo {};
+    std::array<float, fftSize> spectrum {};
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LaPautaEQProAudioProcessor)
 };
