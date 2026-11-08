@@ -12,16 +12,36 @@ permissions:
 jobs:
   build:
     name: Compile VST3 Windows 64-bit
-    runs-on: windows-latest
+    runs-on: windows-2025-vs2026
 
     steps:
       - name: Download repository
         uses: actions/checkout@v4
 
-      - name: Configure JUCE project
-        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+      - name: Activate Visual Studio C++ environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
 
-      - name: Compile La Pauta EQ Pro
+      - name: Verify compiler and Ninja
+        shell: pwsh
+        run: |
+          if (-not (Get-Command cl.exe -ErrorAction SilentlyContinue)) {
+            throw "MSVC C++ compiler was not found."
+          }
+
+          if (-not (Get-Command ninja.exe -ErrorAction SilentlyContinue)) {
+            throw "Ninja was not found."
+          }
+
+          if (-not (Get-Command cmake.exe -ErrorAction SilentlyContinue)) {
+            throw "CMake was not found."
+          }
+
+      - name: Configure JUCE project
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Compile VST3
         run: cmake --build build --config Release --parallel 2
 
       - name: Find VST3 plugin
@@ -31,11 +51,11 @@ jobs:
             Select-Object -First 1
 
           if ($null -eq $plugin) {
-            Write-Error "The VST3 plugin was not found after compilation."
-            exit 1
+            throw "The VST3 plugin was not found after compilation."
           }
 
           Write-Host "VST3 found: $($plugin.FullName)"
+
           "PLUGIN_PATH=$($plugin.FullName)" |
             Out-File -FilePath $env:GITHUB_ENV -Append
 
