@@ -1,17 +1,10 @@
 
-name: La Pauta EQ Pro - Windows VST3 Build
+name: La Pauta EQ Pro - Windows x64
 
 on:
   push:
     branches:
       - main
-      - master
-
-  pull_request:
-    branches:
-      - main
-      - master
-
   workflow_dispatch:
 
 permissions:
@@ -19,61 +12,123 @@ permissions:
 
 jobs:
   build:
-    name: Build VST3 - Windows x64
+    name: Build VST3 and Windows Installer
     runs-on: windows-2022
 
     steps:
-      - name: Checkout repository
+      - name: Download repository
         uses: actions/checkout@v4
 
-      - name: Verify build tools
-        shell: pwsh
-        run: |
-          cmake --version
-          git --version
-
       - name: Configure JUCE project
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Compile VST3
+        run: cmake --build build --config Release --parallel 2
+
+      - name: Locate and package VST3
         shell: pwsh
         run: |
-          cmake -S . -B build -A x64 `
-            -DCMAKE_BUILD_TYPE=Release `
-            -DFETCHCONTENT_FULLY_DISCONNECTED=OFF
+          $plugin = Get-ChildItem -Path "build" -Directory -Filter "*.vst3" -Recurse |
+            Select-Object -First 1
 
-      - name: Build La Pauta EQ Pro
-        shell: pwsh
-        run: |
-          cmake --build build `
-            --config Release `
-            --parallel 2
-
-      - name: Verify VST3 plugin
-        shell: pwsh
-        run: |
-          $plugin = "build/LaPautaEQPro_artefacts/Release/VST3/LaPauta EQ Pro.vst3"
-
-          if (!(Test-Path $plugin)) {
-            Write-Error "VST3 plugin was not generated."
-            exit 1
+          if (-not $plugin) {
+            throw "ERROR: No se encontró ningún archivo .vst3."
           }
 
-          Write-Host "VST3 plugin generated successfully."
-          Get-ChildItem $plugin -Recurse
+          New-Item -ItemType Directory -Force -Path "PLUGIN" | Out-Null
 
-      - name: Package VST3
-        shell: pwsh
-        run: |
-          $plugin = "build/LaPautaEQPro_artefacts/Release/VST3/LaPauta EQ Pro.vst3"
+          Copy-Item -LiteralPath $plugin.FullName `
+            -Destination "PLUGIN\La Pauta EQ Pro.vst3" -Recurse
 
-          Compress-Archive `
-            -Path $plugin `
-            -DestinationPath "LaPauta-EQ-Pro-VST3-Windows-x64.zip" `
-            -Force
+          if (!(Test-Path "PLUGIN\La Pauta EQ Pro.vst3")) {
+            throw "ERROR: No se pudo copiar el plugin."
+          }
 
-      - name: Upload VST3 artifact
+      - name: Upload VST3 ZIP
         uses: actions/upload-artifact@v4
         with:
           name: LaPauta-EQ-Pro-VST3-Windows-x64
-          path: LaPauta-EQ-Pro-VST3-Windows-x64.zip
+          path: PLUGIN/La Pauta EQ Pro.vst3
           if-no-files-found: error
-          retention-days: 30
-          
+          compression-level: 6
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Create installer configuration
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "installer" | Out-Null
+
+          $logoLine = ""
+          if (Test-Path "assets\logo.ico") {
+            $logoLine = 'SetupIconFile=assets\logo.ico'
+          }
+
+          $iss = @"
+          #define MyAppName "La Pauta EQ Pro"
+          #define MyAppVersion "1.0.0"
+          #define MyPublisher "La Pauta"
+
+          [Setup]
+          AppId={{9D85C9C7-72F1-4D10-91F2-583104290001}
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          AppPublisher={#MyPublisher}
+          DefaultDirName={autopf}\Common Files\VST3
+          DisableDirPage=yes
+          DisableProgramGroupPage=yes
+          DefaultGroupName=La Pauta EQ Pro
+          OutputDir=installer
+          OutputBaseFilename=LaPauta-EQ-Pro-Setup
+          ArchitecturesAllowed=x64
+          ArchitecturesInstallIn64BitMode=x64
+          PrivilegesRequired=admin
+          Compression=lzma2
+          SolidCompression=yes
+          WizardStyle=modern
+          Uninstallable=yes
+          $logoLine
+
+          [Languages]
+          Name: "spanish"; MessagesFile: "compiler:Languages\Spanish.isl"
+
+          [Files]
+          Source: "PLUGIN\La Pauta EQ Pro.vst3\*"; DestDir: "{app}\La Pauta EQ Pro.vst3"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [UninstallDelete]
+          Type: filesandordirs; Name: "{app}\La Pauta EQ Pro.vst3"
+
+          [Code]
+          function InitializeSetup(): Boolean;
+          begin
+            Result := IsWin64;
+            if not Result then
+              MsgBox('Este instalador requiere Windows de 64 bits.', mbError, MB_OK);
+          end;
+          "@
+
+          Set-Content -Path "installer\LaPautaEQPro.iss" -Value $iss -Encoding ASCII
+
+      - name: Build Windows EXE installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+
+          if (!(Test-Path $iscc)) {
+            throw "ERROR: No se encontró Inno Setup Compiler."
+          }
+
+          & $iscc "installer\LaPautaEQPro.iss"
+
+          if (!(Test-Path "installer\LaPauta-EQ-Pro-Setup.exe")) {
+            throw "ERROR: No se generó el instalador EXE."
+          }
+
+      - name: Upload Windows EXE Installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: LaPauta-EQ-Pro-Windows-Installer
+          path: installer/LaPauta-EQ-Pro-Setup.exe
+          if-no-files-found: error
+          compression-level: 0
