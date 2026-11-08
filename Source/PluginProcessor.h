@@ -15,13 +15,18 @@ public:
 
     void prepareToPlay(double sampleRate, int samplesPerBlock) override;
     void releaseResources() override;
+
     bool isBusesLayoutSupported(const BusesLayout& layouts) const override;
-    void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+
+    void processBlock(
+        juce::AudioBuffer<float>& buffer,
+        juce::MidiBuffer& midiMessages) override;
 
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
     const juce::String getName() const override;
+
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
@@ -31,6 +36,7 @@ public:
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}
+
     const juce::String getProgramName(int) override { return {}; }
     void changeProgramName(int, const juce::String&) override {}
 
@@ -49,14 +55,16 @@ private:
 
     void updateFilters();
 
-    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
+    static juce::AudioProcessorValueTreeState::ParameterLayout
+        createParameterLayout();
 
     static constexpr int fftOrder = 10;
     static constexpr int fftSize = 1 << fftOrder;
 
     juce::dsp::FFT forwardFFT { fftOrder };
 
-    juce::dsp::WindowingFunction<float> window {
+    juce::dsp::WindowingFunction<float> window
+    {
         fftSize,
         juce::dsp::WindowingFunction<float>::hann
     };
@@ -66,5 +74,6 @@ private:
     std::array<float, fftSize> fifo {};
     std::array<float, fftSize> spectrum {};
 
-    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(LaPautaEQProAudioProcessor)
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(
+        LaPautaEQProAudioProcessor)
 };
